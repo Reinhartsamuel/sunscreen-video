@@ -1,0 +1,304 @@
+const fs = require('fs');
+const path = require('path');
+
+const W = 320;
+const H = 240;
+const FPS = 1;
+const TOTAL_SECONDS = 45;
+const TOTAL_FRAMES = TOTAL_SECONDS * FPS;
+const OUT = '/public/sunscreen-video/out/sunscreen.avi';
+
+// 5x7 font: each char = 7 rows, each row = 5 bits (LSB = leftmost pixel)
+const FONT = {
+  ' ': [0x00,0x00,0x00,0x00,0x00,0x00,0x00],
+  '!': [0x02,0x02,0x02,0x02,0x02,0x00,0x02],
+  '#': [0x0a,0x0a,0x1f,0x0a,0x1f,0x0a,0x0a],
+  '$': [0x04,0x0e,0x19,0x18,0x19,0x0e,0x04],
+  '%': [0x11,0x11,0x0a,0x04,0x0a,0x11,0x11],
+  '&': [0x0e,0x11,0x13,0x15,0x19,0x15,0x0e],
+  "'": [0x10,0x10,0x10,0x00,0x00,0x00,0x00],
+  '(': [0x04,0x08,0x10,0x10,0x10,0x08,0x04],
+  ')': [0x08,0x04,0x02,0x02,0x02,0x04,0x08],
+  '*': [0x04,0x0a,0x11,0x04,0x11,0x0a,0x04],
+  '+': [0x00,0x00,0x04,0x0e,0x04,0x00,0x00],
+  ',': [0x00,0x00,0x00,0x00,0x00,0x04,0x08],
+  '-': [0x00,0x00,0x00,0x0e,0x00,0x00,0x00],
+  '.': [0x00,0x00,0x00,0x00,0x00,0x06,0x00],
+  '/': [0x00,0x00,0x00,0x08,0x10,0x10,0x00],
+  '0': [0x0e,0x11,0x13,0x15,0x19,0x11,0x0e],
+  '1': [0x04,0x06,0x04,0x04,0x04,0x04,0x0e],
+  '2': [0x0e,0x11,0x01,0x02,0x04,0x08,0x1f],
+  '3': [0x1f,0x01,0x02,0x06,0x01,0x11,0x0e],
+  '4': [0x02,0x06,0x0a,0x12,0x1f,0x02,0x02],
+  '5': [0x1f,0x10,0x10,0x1e,0x01,0x11,0x0e],
+  '6': [0x0e,0x11,0x10,0x1e,0x11,0x11,0x0e],
+  '7': [0x1f,0x01,0x02,0x04,0x08,0x08,0x08],
+  '8': [0x0e,0x11,0x11,0x0e,0x11,0x11,0x0e],
+  '9': [0x0e,0x11,0x11,0x0f,0x01,0x02,0x0c],
+  ':': [0x00,0x00,0x0a,0x00,0x0a,0x00,0x00],
+  '=': [0x00,0x00,0x0e,0x00,0x0e,0x00,0x00],
+  '?': [0x0e,0x11,0x01,0x02,0x04,0x00,0x04],
+  '@': [0x0e,0x11,0x15,0x15,0x17,0x11,0x0e],
+  'A': [0x0e,0x11,0x11,0x1f,0x11,0x11,0x11],
+  'B': [0x1e,0x11,0x11,0x1e,0x11,0x11,0x1e],
+  'C': [0x0e,0x11,0x10,0x10,0x10,0x11,0x0e],
+  'D': [0x1e,0x11,0x11,0x11,0x11,0x11,0x1e],
+  'E': [0x1f,0x10,0x10,0x1c,0x10,0x10,0x1f],
+  'F': [0x1f,0x10,0x10,0x1c,0x10,0x10,0x10],
+  'G': [0x0e,0x11,0x10,0x17,0x11,0x11,0x0e],
+  'H': [0x11,0x11,0x11,0x1f,0x11,0x11,0x11],
+  'I': [0x1e,0x04,0x04,0x04,0x04,0x04,0x1e],
+  'J': [0x1f,0x01,0x01,0x01,0x01,0x11,0x0e],
+  'K': [0x11,0x11,0x12,0x14,0x18,0x14,0x12],
+  'L': [0x10,0x10,0x10,0x10,0x10,0x10,0x1f],
+  'M': [0x11,0x1b,0x15,0x15,0x11,0x11,0x11],
+  'N': [0x11,0x11,0x13,0x15,0x19,0x11,0x11],
+  'O': [0x0e,0x11,0x11,0x11,0x11,0x11,0x0e],
+  'P': [0x1e,0x11,0x11,0x1e,0x10,0x10,0x10],
+  'Q': [0x0e,0x11,0x11,0x11,0x15,0x12,0x0d],
+  'R': [0x1e,0x11,0x11,0x1e,0x14,0x12,0x11],
+  'S': [0x0e,0x11,0x10,0x0e,0x01,0x11,0x0e],
+  'T': [0x1f,0x04,0x04,0x04,0x04,0x04,0x04],
+  'U': [0x11,0x11,0x11,0x11,0x11,0x11,0x0e],
+  'V': [0x11,0x11,0x11,0x11,0x11,0x0a,0x04],
+  'W': [0x11,0x11,0x11,0x15,0x15,0x1b,0x11],
+  'X': [0x11,0x11,0x0a,0x04,0x0a,0x11,0x11],
+  'Y': [0x11,0x11,0x0a,0x04,0x04,0x04,0x04],
+  'Z': [0x1f,0x01,0x02,0x04,0x08,0x10,0x1f],
+  'a': [0x00,0x00,0x0e,0x11,0x1f,0x11,0x11],
+  'b': [0x10,0x10,0x16,0x19,0x11,0x11,0x1e],
+  'c': [0x00,0x00,0x0e,0x11,0x10,0x11,0x0e],
+  'd': [0x01,0x01,0x0d,0x13,0x11,0x11,0x0e],
+  'e': [0x00,0x00,0x0e,0x11,0x1f,0x10,0x0e],
+  'f': [0x04,0x02,0x1c,0x02,0x02,0x02,0x02],
+  'g': [0x00,0x00,0x0e,0x11,0x11,0x0f,0x01],
+  'h': [0x10,0x10,0x16,0x19,0x11,0x11,0x11],
+  'i': [0x00,0x06,0x00,0x04,0x04,0x04,0x0e],
+  'j': [0x00,0x01,0x00,0x01,0x01,0x11,0x0e],
+  'k': [0x10,0x10,0x12,0x14,0x18,0x14,0x12],
+  'l': [0x00,0x04,0x00,0x04,0x04,0x04,0x0e],
+  'm': [0x00,0x00,0x16,0x19,0x11,0x11,0x11],
+  'n': [0x00,0x00,0x16,0x19,0x11,0x11,0x11],
+  'o': [0x00,0x00,0x0e,0x11,0x11,0x11,0x0e],
+  'p': [0x00,0x00,0x1e,0x11,0x11,0x1e,0x10],
+  'q': [0x00,0x00,0x0e,0x11,0x11,0x0f,0x01],
+  'r': [0x00,0x00,0x16,0x19,0x10,0x10,0x10],
+  's': [0x00,0x00,0x0e,0x10,0x0e,0x01,0x0e],
+  't': [0x00,0x11,0x1e,0x01,0x01,0x01,0x00],
+  'u': [0x00,0x00,0x11,0x11,0x11,0x11,0x0e],
+  'v': [0x00,0x00,0x11,0x11,0x11,0x0a,0x04],
+  'w': [0x00,0x00,0x11,0x15,0x15,0x1b,0x11],
+  'x': [0x00,0x00,0x11,0x0a,0x04,0x0a,0x11],
+  'y': [0x00,0x00,0x11,0x11,0x0f,0x01,0x0e],
+  'z': [0x00,0x00,0x1f,0x02,0x04,0x08,0x1f],
+};
+
+const frameSize = W * H * 3;
+
+function newFrame() {
+  return Buffer.alloc(frameSize, 0);
+}
+
+function fillRect(fb, x, y, w, h, r, g, b) {
+  const bb = b, gg = g, rr = r;
+  for (let dy = 0; dy < h; dy++) {
+    const off = ((y + dy) * W + x) * 3;
+    for (let dx = 0; dx < w * 3; dx += 3) {
+      fb[off + dx] = bb;
+      fb[off + dx + 1] = gg;
+      fb[off + dx + 2] = rr;
+    }
+  }
+}
+
+function setPixel(fb, x, y, r, g, b) {
+  if (x < 0 || x >= W || y < 0 || y >= H) return;
+  const idx = (y * W + x) * 3;
+  fb[idx] = b;
+  fb[idx + 1] = g;
+  fb[idx + 2] = r;
+}
+
+function drawChar(fb, ch, cx, cy, r, g, b, scale) {
+  const rows = FONT[ch] || FONT[' '];
+  for (let row = 0; row < 7; row++) {
+    const bits = rows[row];
+    for (let col = 0; col < 5; col++) {
+      if (bits & (1 << col)) {
+        for (let sx = 0; sx < scale; sx++) {
+          for (let sy = 0; sy < scale; sy++) {
+            setPixel(fb, cx + col * scale + sx, cy + row * scale + sy, r, g, b);
+          }
+        }
+      }
+    }
+  }
+}
+
+function drawText(fb, text, x, y, r, g, b, scale) {
+  let cx = x;
+  for (const ch of text) {
+    drawChar(fb, ch, cx, y, r, g, b, scale);
+    cx += 6 * scale;
+  }
+}
+
+function drawTextCentered(fb, text, y, r, g, b, scale) {
+  const totalWidth = text.length * 6 * scale;
+  const x = Math.max(0, (W - totalWidth) / 2);
+  drawText(fb, text, x, y, r, g, b, scale);
+}
+
+function drawLine(fb, x1, y1, x2, y2, r, g, b) {
+  const dx = Math.abs(x2 - x1);
+  const dy = Math.abs(y2 - y1);
+  const sx = x1 < x2 ? 1 : -1;
+  const sy = y1 < y2 ? 1 : -1;
+  let err = dx - dy;
+  while (true) {
+    setPixel(fb, x1, y1, r, g, b);
+    if (x1 === x2 && y1 === y2) break;
+    const e2 = 2 * err;
+    if (e2 > -dy) { err -= dy; x1 += sx; }
+    if (e2 < dx) { err += dx; y1 += sy; }
+  }
+}
+
+function fillCircle(fb, cx, cy, radius, r, g, b) {
+  const r2 = radius * radius;
+  for (let dy = -radius; dy <= radius; dy++) {
+    for (let dx = -radius; dx <= radius; dx++) {
+      if (dx * dx + dy * dy <= r2) setPixel(fb, cx + dx, cy + dy, r, g, b);
+    }
+  }
+}
+
+function uint32LE(v) {
+  const b = Buffer.alloc(4);
+  b.writeUInt32LE(v, 0);
+  return b;
+}
+function fourcc(s) { return Buffer.from(s); }
+
+const SCENES = [
+  { start: 0,  end: 5,  name: 'title' },
+  { start: 5,  end: 12, name: 'uv' },
+  { start: 12, end: 22, name: 'chemical' },
+  { start: 22, end: 32, name: 'mineral' },
+  { start: 32, end: 42, name: 'spf' },
+  { start: 42, end: 45, name: 'outro' },
+];
+
+function sceneForTime(t) {
+  for (const s of SCENES) if (t >= s.start && t < s.end) return s;
+  return SCENES[SCENES.length - 1];
+}
+
+const frames = [];
+const idxEntries = [];
+let moviOffset = 0;
+
+for (let f = 0; f < TOTAL_FRAMES; f++) {
+  const t = f;
+  const scene = sceneForTime(t);
+  const fb = newFrame();
+
+  fillRect(fb, 0, 0, W, H, 10, 10, 20);
+  fillRect(fb, 0, 0, W, 4, 255, 255, 255);
+  fillRect(fb, 0, H - 4, W, 4, 255, 255, 255);
+  fillRect(fb, 0, 0, 4, H, 255, 255, 255);
+  fillRect(fb, W - 4, 0, 4, H, 255, 255, 255);
+
+  if (scene.name === 'title') {
+    fillRect(fb, 20, 40, 280, 160, 20, 20, 40);
+    drawTextCentered(fb, 'HOW SUNSCREEN WORKS', 60, 255, 255, 255, 2);
+    drawTextCentered(fb, 'UV Protection Guide', 110, 200, 200, 255, 1);
+    fillCircle(fb, 260, 80, 20, 255, 200, 50);
+    drawTextCentered(fb, 'Protect your skin', 190, 150, 255, 150, 1);
+  } else if (scene.name === 'uv') {
+    drawTextCentered(fb, 'ULTRAVIOLET RADIATION', 50, 255, 100, 100, 1);
+    drawTextCentered(fb, 'UVA Ages  |  UVB Burns', 90, 255, 255, 255, 1);
+    drawTextCentered(fb, 'DNA Damage', 130, 255, 150, 150, 1);
+    for (let i = 0; i < 4; i++) {
+      const x = 40 + i * 70;
+      drawLine(fb, x, 160, x, 190, 255, 80, 80);
+      drawLine(fb, x - 5, 160, x + 5, 190, 255, 80, 80);
+    }
+  } else if (scene.name === 'chemical') {
+    drawTextCentered(fb, 'CHEMICAL SUNSCREEN', 50, 100, 150, 255, 1);
+    drawTextCentered(fb, 'Absorbs UV -> Heat', 90, 255, 255, 255, 1);
+    fillCircle(fb, 160, 150, 18, 100, 150, 255);
+    drawLine(fb, 140, 100, 180, 100, 255, 100, 100);
+  } else if (scene.name === 'mineral') {
+    drawTextCentered(fb, 'MINERAL SUNSCREEN', 50, 255, 200, 50, 1);
+    drawTextCentered(fb, 'Reflects UV Like Mirror', 90, 255, 255, 255, 1);
+    fillRect(fb, 100, 110, 120, 70, 255, 255, 200);
+    drawLine(fb, 100, 110, 220, 110, 255, 200, 50);
+    drawLine(fb, 100, 180, 220, 180, 255, 200, 50);
+    drawLine(fb, 100, 110, 100, 180, 255, 200, 50);
+    drawLine(fb, 220, 110, 220, 180, 255, 200, 50);
+  } else if (scene.name === 'spf') {
+    drawTextCentered(fb, 'SPF 30 = 97% UVB Blocked', 70, 150, 255, 150, 1);
+    drawTextCentered(fb, 'SPF 50 = 98% UVB Blocked', 110, 150, 255, 150, 1);
+    drawTextCentered(fb, 'Reapply Every 2 Hours', 150, 255, 200, 100, 1);
+    drawTextCentered(fb, 'Choose BROAD SPECTRUM', 190, 100, 255, 100, 1);
+  } else if (scene.name === 'outro') {
+    drawTextCentered(fb, 'Apply generously.', 90, 255, 255, 255, 2);
+    drawTextCentered(fb, 'Reapply often.', 130, 255, 255, 255, 2);
+    drawTextCentered(fb, 'Stay protected.', 170, 255, 255, 255, 2);
+  }
+
+  frames.push(fb);
+  idxEntries.push(fourcc('00db'), uint32LE(16), uint32LE(moviOffset), uint32LE(frameSize));
+  moviOffset += 8 + frameSize;
+}
+
+const moviBuf = Buffer.concat(frames.map((fb, i) => Buffer.concat([fourcc('00db'), uint32LE(frameSize), fb])));
+const idxBuf = Buffer.concat(idxEntries);
+
+const dwMicroSecPerFrame = 1000000;
+const avih = Buffer.alloc(56);
+avih.writeUInt32LE(dwMicroSecPerFrame, 0);
+avih.writeUInt32LE(0x10, 12);
+avih.writeUInt32LE(TOTAL_FRAMES, 16);
+avih.writeUInt32LE(FPS, 24);
+avih.writeUInt32LE(FPS, 28);
+avih.writeUInt32LE(W, 40);
+avih.writeUInt32LE(H, 44);
+
+const bitmapInfo = Buffer.alloc(40);
+bitmapInfo.writeUInt32LE(40, 0);
+bitmapInfo.writeInt32LE(W, 4);
+bitmapInfo.writeInt32LE(H, 8);
+bitmapInfo.writeUInt16LE(1, 12);
+bitmapInfo.writeUInt16LE(24, 14);
+bitmapInfo.writeUInt32LE(frameSize, 20);
+
+const strh = Buffer.alloc(56);
+fourcc('vids').copy(strh, 0);
+fourcc('RGB ').copy(strh, 4);
+strh.writeUInt32LE(TOTAL_FRAMES, 20);
+strh.writeUInt32LE(FPS, 24);
+strh.writeUInt32LE(FPS, 28);
+strh.writeUInt32LE(TOTAL_FRAMES, 32);
+strh.writeInt16LE(W, 52);
+strh.writeInt16LE(H, 54);
+
+const strlData = Buffer.concat([fourcc('strh'), uint32LE(strh.length), strh,
+  fourcc('strf'), uint32LE(bitmapInfo.length), bitmapInfo]);
+const strlList = Buffer.concat([fourcc('LIST'), uint32LE(4 + strlData.length), fourcc('strl'), strlData]);
+
+const hdrlData = Buffer.concat([avih, strlList]);
+const hdrlList = Buffer.concat([fourcc('LIST'), uint32LE(4 + hdrlData.length), fourcc('hdrl'), hdrlData]);
+
+const moviList = Buffer.concat([fourcc('LIST'), uint32LE(4 + moviBuf.length), fourcc('movi'), moviBuf]);
+const idx1 = Buffer.concat([fourcc('idx1'), uint32LE(idxBuf.length), idxBuf]);
+
+const riffSize = 4 + hdrlList.length + moviList.length + idx1.length;
+const riff = Buffer.concat([fourcc('RIFF'), uint32LE(riffSize), fourcc('AVI ')]);
+
+const avi = Buffer.concat([riff, hdrlList, moviList, idx1]);
+
+fs.mkdirSync(path.dirname(OUT), { recursive: true });
+fs.writeFileSync(OUT, avi);
+console.log(`Done: ${OUT} (${avi.length} bytes, ${TOTAL_FRAMES} frames, ${TOTAL_SECONDS}s)`);
